@@ -1,0 +1,24 @@
+# Deploy this project folder as the repository root. Aiven is provisioned separately.
+services:
+  - type: web
+    name: crypto-portfolio
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: SERVER_ADDRESS
+        value: 0.0.0.0
+      - key: SESSION_COOKIE_SECURE
+        value: "true"
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_USER
+        sync: false
+      - key: DATABASE_PASSWORD
+        sync: false
+      - key: SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE
+        value: "5"
+      - key: SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE
+        value: "0"
