@@ -32,6 +32,7 @@ export default function App() {
  const [deleteTarget,setDeleteTarget]=useState<Trade|null>(null)
  const [undoId,setUndoId]=useState<number|null>(null)
  const [message,setMessage]=useState('')
+ const [authError,setAuthError]=useState(false)
  const [revision,setRevision]=useState(0)
  const [data,setData]=useState<({owner:number;revision:number} & Portfolio)|null>(null)
  const [loadError,setLoadError]=useState<{owner:number;revision:number;message:string}|null>(null)
@@ -63,7 +64,7 @@ export default function App() {
  },[account,revision])
  useEffect(()=>{if(!account||busy)return;const timer=setInterval(()=>setRevision(n=>n+1),120000);return ()=>clearInterval(timer)},[account,busy])
  useEffect(()=>{document.documentElement.lang=lang==='en'?'en':'zh-CN'},[lang])
- function navigate(next:View){setView(next);setShowForm(false);setEditing(null);setDeleteTarget(null);setMessage('')}
+ function navigate(next:View){setView(next);setShowForm(false);setEditing(null);setDeleteTarget(null);setMessage('');setAuthError(false)}
  function handleFailure(status:number,code?:string):never {
   if(status===401){setAccount(null);setData(null);navigate('login');throw Error('SESSION_EXPIRED')}
   throw Error(code??(status===403?'CSRF_FAILED':'REQUEST_FAILED'))
@@ -80,19 +81,19 @@ export default function App() {
  async function submitAuth(e:FormEvent<HTMLFormElement>){
   e.preventDefault();const form=e.currentTarget;const fields=new FormData(form)
   const email=String(fields.get('email'));const password=String(fields.get('password'))
-  setBusy(true);setMessage('')
+  setBusy(true);setMessage('');setAuthError(false)
   try {
    if(register){
     const r=await authRequest('/api/auth/register',JSON.stringify({email,password,language:lang}),'application/json')
-    if(!r.ok){setMessage(r.status===409?text('An account with this email already exists.','该邮箱已注册。'):text('Check your email and password requirements.','请检查邮箱和密码要求。'));return}
+    if(!r.ok){setAuthError(true);setMessage(r.status===409?text('An account with this email already exists.','该邮箱已注册。'):text('Check your email and password requirements.','请检查邮箱和密码要求。'));return}
     form.reset();setRegister(false);setMessage(text('Account created. Sign in to continue.','账户已创建，请登录。'))
    }else{
     const r=await authRequest('/api/auth/login',new URLSearchParams({email,password}),'application/x-www-form-urlencoded')
-    if(!r.ok){setMessage(text('Check your email and password and try again.','请检查邮箱和密码后重试。'));return}
+    if(!r.ok){setAuthError(true);setMessage(text('Check your email and password and try again.','请检查邮箱和密码后重试。'));return}
     const user=await currentAccount();if(!user)throw Error('SESSION_EXPIRED')
     setData(null);setLoadError(null);setAccount(user);setLang(user.language);form.reset();navigate('overview')
    }
-  }catch(error){setMessage(explain(error))}finally{setBusy(false)}
+  }catch(error){setAuthError(true);setMessage(explain(error))}finally{setBusy(false)}
  }
  async function logout(){
   setBusy(true)
@@ -127,7 +128,7 @@ export default function App() {
   <div className="workspace"><header className="topbar"><span>Crypto Portfolio <span className="slash">/</span> {t[view]}</span><button className="language" onClick={()=>setLang(lang==='en'?'zh':'en')} aria-label={lang==='en'?'Switch to Chinese':'切换为英语'}>{lang==='en'?'中文':'English'}</button></header>
   <main><div className="demo-banner">{demo?text('Sample portfolio · Illustrative FX: USD 1 = MYR 4.20','示例资产 · 示例汇率：1美元 = 4.20马币'):text('Your transaction records · MYR','您的交易记录 · 马币')}</div>
   <div className="account-bar">{account?<><span>{text('Signed in as','当前账户')} <strong>{account.email}</strong></span><button className="text-button" disabled={busy} onClick={()=>void logout()}>{text('Sign out','退出登录')}</button></>:<span>{authReady?text('Sign in to manage your own portfolio.','登录后管理您的资产。'):text('Checking session…','正在检查登录状态…')}</span>}</div>
-  {view==='login'?<div className="login-layout"><div><p className="eyebrow">CRYPTO PORTFOLIO</p><h1>{register?text('Start your portfolio.','开始管理您的资产。'):t.welcome}</h1><p className="muted">{t.subtitle}</p></div><form className="login-panel" onSubmit={submitAuth}><h2>{register?text('Create account','创建账户'):t.login}</h2><p className="muted">{t.loginNote}</p><label>{t.email}<input name="email" type="email" required autoComplete="username" maxLength={254} placeholder="you@example.com" disabled={busy}/></label><label>{t.password}<input name="password" type="password" required autoComplete={register?'new-password':'current-password'} minLength={register?12:1} maxLength={64} disabled={busy}/></label><button className="primary" disabled={busy}>{busy?text('Please wait…','请稍候…'):register?text('Create account','创建账户'):t.signin}</button><button type="button" className="text-button" disabled={busy} onClick={()=>{setRegister(!register);setMessage('')}}>{register?text('Already have an account? Sign in','已有账户？登录'):text('New here? Create account','还没有账户？创建账户')}</button><button type="button" className="text-button" onClick={()=>navigate('overview')}>{t.back}</button><p role="status">{message}</p></form></div>:<>
+  {view==='login'?<div className="login-layout"><div><p className="eyebrow">CRYPTO PORTFOLIO</p><h1>{register?text('Start your portfolio.','开始管理您的资产。'):t.welcome}</h1><p className="muted">{t.subtitle}</p></div><form className="login-panel" onSubmit={submitAuth}><h2>{register?text('Create account','创建账户'):t.login}</h2><p className="muted">{t.loginNote}</p><label>{t.email}<input name="email" type="email" required autoComplete="username" maxLength={254} placeholder="you@example.com" disabled={busy} aria-invalid={authError||undefined} aria-describedby={message?"auth-feedback":undefined}/></label><label>{t.password}<input name="password" type="password" required autoComplete={register?'new-password':'current-password'} minLength={register?12:1} maxLength={64} disabled={busy} aria-invalid={authError||undefined} aria-describedby={message?"auth-feedback":undefined}/></label>{message&&<div id="auth-feedback" className={authError?"auth-feedback auth-error":"auth-feedback auth-notice"} role={authError?"alert":"status"}>{authError&&<span className="auth-error-icon" aria-hidden="true">!</span>}<span>{message}</span></div>}<button className="primary" disabled={busy}>{busy?text('Please wait…','请稍候…'):register?text('Create account','创建账户'):t.signin}</button><button type="button" className="text-button" disabled={busy} onClick={()=>{setRegister(!register);setMessage('');setAuthError(false)}}>{register?text('Already have an account? Sign in','已有账户？登录'):text('New here? Create account','还没有账户？创建账户')}</button><button type="button" className="text-button" onClick={()=>navigate('overview')}>{t.back}</button></form></div>:<>
   <div className="page-heading"><div><p className="eyebrow">{view==='overview'?'PORTFOLIO OVERVIEW':'YOUR ACTIVITY'}</p><h1>{view==='overview'?t.title:t.history}</h1><p className="muted">{view==='overview'?t.subtitle:text('Your purchases and sales, ordered by their UTC transaction time.','按UTC交易时间排序的买卖记录。')}</p></div><button className="primary" disabled={busy||!authReady} aria-expanded={showForm} onClick={()=>openForm()}>+ {t.add}</button></div>
   <p role="status" className="feedback">{message}</p>
   {undoId!==null&&account&&<button className="text-button" disabled={busy} onClick={()=>void removeOrRestore(undoId,true)}>{text('Undo last deletion','撤销上次删除')}</button>}
