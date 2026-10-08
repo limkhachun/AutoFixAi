@@ -22,8 +22,9 @@ import org.springframework.web.server.ResponseStatusException;
 public class AuthController {
     private final JdbcTemplate jdbc;
     private final PasswordEncoder passwords;
-    public AuthController(JdbcTemplate jdbc, PasswordEncoder passwords) {
-        this.jdbc = jdbc; this.passwords = passwords;
+    private final SimulationService simulation;
+    public AuthController(JdbcTemplate jdbc, PasswordEncoder passwords, SimulationService simulation) {
+        this.jdbc = jdbc; this.passwords = passwords; this.simulation=simulation;
     }
     record Registration(@NotBlank @Email @Size(max=254) String email,
                         @NotBlank @Size(min=12,max=64) String password,
@@ -38,6 +39,8 @@ public class AuthController {
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
     Map<String,String> register(@Valid @RequestBody Registration input) {
+        if(simulation.isAdmin(input.email().trim()))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin email is reserved. Provision the account before configuring admin access.");
         if (input.password().getBytes(StandardCharsets.UTF_8).length > 72)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Password exceeds 72 UTF-8 bytes");
         try {
