@@ -58,3 +58,18 @@ At 375 pixels, the original two-column metric grid clipped cards. Small screens 
 
 Selected Render Free plus Aiven Free MySQL after checking official limits. Prepared a multi-stage Dockerfile that packages React assets inside Spring Boot, a Render Free Blueprint, and deployment instructions. Static GET routes are public while APIs retain authorization/CSRF. Container binding and port are configurable, and HTTPS deployment sets secure cookies. Seven backend tests passed; frontend build/lint passed. Docker image build, hosted MySQL certificate configuration, account setup, source publication, and actual deployment remain pending.
 
+
+## Hosted acceptance checks
+
+Verified the Render deployment over HTTPS with two explicitly approved disposable accounts. Registration/login, Secure and HttpOnly session cookies, persisted MYR cost basis, account read/write isolation, overselling rejection, edits, soft deletion, undo, and logout/session invalidation passed. The test purchase was soft-deleted; two test accounts remain for manual database cleanup. Initial test harness omitted the newly issued CSRF session cookie; corrected the cookie handling before successful registration. No application CSRF change was needed.
+
+Hosted market valuation remains unverified: CoinGecko returned a rate limit, and the app correctly reports unavailable prices with null valuation. Add a server-side CoinGecko Demo API key and recheck before marking market-data acceptance complete. Detailed results are recorded locally in hosted-verification.json.
+
+## Simulated funding audit and trade confirmation — 10 October 2026
+
+Added funding purposes, adjusted approvals with reasons, direct admin grants with retry protection, an immutable funding audit and V6 migration preserving legacy balances and trades. Users now land on simulated assets showing cash, holdings, equity and realized/unrealized profit; funding is principal. Server-prepared, 60-second trade previews require explicit confirmation and reject changed prices or balances. The manual ledger remains separate.
+
+Quantity inputs use ordinary decimals without native arrows. Sell forms show the selected asset's available quantity, offer Sell all and block excess quantities with a red alert. Comparisons preserve 12 decimal places using integer units; the server retains its final overselling checks.
+
+Validation: backend compilation, frontend production build and source lint passed; five frontend monetary/quantity precision tests and 27 independent database/service checks passed. The user manually confirmed funding requests, adjusted approvals, direct grants, buy/sell, overselling protection, preview expiry, persistence after refresh/relogin, mobile layout and both languages. Final fixture: MYR1,450 cash, 0.5 BTC worth MYR50, MYR1,500 equity and funding, zero profit. Complete backend automation and current concurrency cases remain unverified due to execution-environment stalls; automatic browser verification could not connect locally. Sell all is implemented but a separate manual full-disposal case has not been recorded. No production data or deployment was changed. User authorized a local commit only; push/deployment require separate alignment.
+

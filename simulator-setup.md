@@ -1,34 +1,77 @@
-# Simulated MYR trading and admin funding
+# 模拟资金、管理员审批与交易确认
 
-This simulator uses virtual MYR, not deposits or exchange orders. Manual portfolio records remain independent. Each account starts with zero simulated cash and no simulated crypto.
+## 当前状态
 
-## Enable your admin account
+2026年10月10日：按已确认的规则修改了数据库迁移、后端、中英文界面及原有测试代码的接口调用。
 
-1. On the existing live website, register `admin@user.com` with your own strong password and verify that you can sign in. Do this **before** setting the admin environment variable: registration of the configured admin email is blocked to prevent someone else claiming it.
-2. Push the new application commit to GitHub.
-3. In Render → crypto-portfolio → Environment, add `SIMULATION_ADMIN_EMAIL` with value `admin@user.com`. Save and redeploy. Do not put an admin password in an environment variable or chat.
-4. After deployment succeeds, sign in as that account and select **Simulator**. The **Admin · Funding requests** panel is visible only to the designated admin; the server independently checks every approval.
+本轮后端编译、前端构建及源码检查通过；前端金额与数量精度测试共5项通过。独立本地数据库的27项专项检查通过，覆盖旧数据迁移、资金审批、主动发放、账户隔离、交易确认防重、价格与余额变化、确认过期及盈亏计算。
 
-Leaving the variable blank disables admin privileges. Changing it transfers this simulator role to the existing account with the new email; approved funding and trades remain in the database. The admin email must name an account you control.
+用户在本地真实前后端页面完成了人工验收：申请、调整审批金额、主动发放、买卖、超卖提示与限制、报价过期、刷新和重新登录后的数据保存，以及手机布局与中英文显示。浏览器自动验证未能连接本地服务；完整后端自动测试在当前执行环境中未完成，不能视为通过。线上部署尚未执行。
 
-## Try the flow
+## 已确定的业务规则
 
-1. Sign in as a normal user → Simulator → request MYR 10,000.
-2. Sign in as the admin in a separate browser session → Simulator → refresh → approve that request.
-3. Refresh the user's Simulator. Available simulated cash becomes MYR 10,000.
-4. Choose BTC, ETH, or SOL and a quantity, then execute a simulated buy. The server selects a recent CoinGecko MYR quote, debits cash and records the crypto quantity atomically.
-5. Sell some owned crypto. Cash is credited and crypto quantity decreases. Refresh or sign in again to verify persistence.
+- 每个账户初始模拟余额为 MYR 0。模拟交易与手动账本独立。
+- 用户申请 MYR 0.01 至 MYR 1,000,000，填写用途；每个账户只能有一笔待审核申请。
+- 管理员可以批准、调整批准金额或拒绝。调整金额、拒绝时必须填写原因。
+- 保留原申请金额，另存实际发放金额；审批记录保留审核人、时间与备注。
+- 管理员也可以选择已注册账户主动发放资金，金额范围相同，备注必填。
+- 两种发放方式均产生资金记录。重复批准不能重复入账；主动发放的同一操作凭证也不能重复入账。
+- 用户只能查看自己的资产、申请、收到的资金及交易。账户搜索、审批及主动发放只对指定管理员开放。
+- 管理员发放的是本金，不计入交易盈利。
 
-One pending request per account is allowed, between MYR 0.01 and MYR 1,000,000. Approved requests credit their exact amount once; rejected requests credit nothing. Users cannot approve requests or read other users' requests/wallets.
+## 界面
 
-Trades have zero fees and settle to MYR cents. Buys round cost upward and sells round proceeds downward, preventing cash creation through rounding. Trades with zero-cent proceeds are rejected. Simulated trades are final, with no edit/delete/undo endpoint. Quotes must have both provider and fetch timestamps within 10 minutes. Insufficient cash, overselling and stale/missing quotes reject the entire trade. Concurrent transactions share the account row lock.
+登录后默认进入“我的资产”：
 
-Wallet balances are derived from immutable trades and approved requests. The latest 100 trades and personal requests appear in the UI; admins see up to 100 requests with pending requests prioritized. Previously approved cash and all trades still count in balance calculations.
+1. **资产概况**：现金余额、持仓市值、总资产、总盈亏、已实现与未实现盈亏，以及持仓和交易记录。
+2. **买卖交易**：选择币种、方向和数量，先预览，再确认。展示单价、报价时间、成交金额、手续费及交易前后余额。
+   数量使用普通小数输入，不提供原生上下箭头，最多12位小数。卖出时显示可卖持仓，提供“全部卖出”；超过持仓时显示红色提示并禁止预览，无持仓时禁止卖出。数量比较使用整数精度，后端继续执行最终持仓校验。
+3. **资金申请**：填写金额、用途；查看申请状态、实际发放、审批备注和收到的资金记录。
+4. **管理员**：审核申请、按邮箱搜索账户、查看余额与累计本金、主动发放、查看发放记录。账户列表每页最多50个。
+5. **手动账本 / 账本记录**：继续保留独立的手动记录功能。
 
-## Local verification
+申请、交易和资金记录各展示最近100笔；管理员的申请列表待审核优先，最多100笔。余额与盈亏按全部历史计算，不受显示数量限制。
 
-Frontend build, lint and both exact-currency tests passed. Local HTTP/MySQL checks passed for authentication, CSRF, input validation, admin-only review, private wallets/requests, one pending request, double approval, concurrent spending, buy/sell settlement, overselling, rejected funding, admin-email reservation and stale-price rejection without wallet changes. Desktop English and phone-sized Mandarin screens were checked. These tests used a local price fixture, not live prices or real money; test accounts, funding, trades and fixture quotes were removed afterward.
+## 交易与盈亏计算
 
-A repeatable Spring/MySQL integration test is included in `SimulationIntegrationTests.java`. The full Maven test run was blocked on this Windows machine by the previously documented Java compiler archive/file-access issue; HTTP checks verified the running packaged backend instead. Run `build-backend.ps1` (or Maven `test` with a configured local MySQL database) on a working Java environment to run the full suite. The container build does not run database tests.
+- 买卖仅涉及虚拟资金，不充值、不提现、不发送真实交易所订单。
+- 第一版手续费为 MYR 0.00。
+- 服务器报价须同时满足提供方时间和抓取时间在10分钟内。
+- 预览产生60秒有效的确认凭证，绑定账户、币种、方向、数量、单价、成交金额及余额。
+- 价格或余额变化、报价失效、确认过期时，拒绝成交并要求重新预览；不会静默使用新价格。
+- 同一已成交确认凭证重复提交不会产生第二笔交易。
+- 买入支出按分向上取整，卖出收入按分向下取整；零分卖出收入被拒绝。
+- 已成交交易没有修改、删除或撤销接口。
+- 买入现金不足或卖出超过持仓时拒绝整笔操作，账户锁用于串行处理并发操作。
+- 持仓成本以实际现金支出计算；卖出使用加权平均成本核算已实现盈亏。
+- 总资产 = 现金余额 + 持仓市值。
+- 总盈亏 = 总资产 − 累计收到的模拟本金。
+- 未实现盈亏 = 持仓市值 − 剩余持仓成本。
+- 缺少持仓报价时总资产与总盈亏显示“—”；过期报价只用于带明确标记的估值，不可交易。
 
-The live deployment and admin setup must still be completed by the account owner. The migration adds funding_request and simulated_trade tables without rewriting previous migrations or manual transaction records.
+## 数据兼容设计（独立测试数据库已验证）
+
+新增 V6 迁移，不改动已存在的 V1 至 V5：
+
+- 添加申请用途、实际批准金额和审批备注字段。
+- 建立 simulation_funding_credit，分别记录审批发放和主动发放。
+- 将旧的已批准申请按原金额补入资金记录，保留原审批人和时间。旧记录没有用途或备注时明确显示未记录。
+- 余额改为全部发放记录之和，减去买入支出、加上卖出收入。
+- 建立 simulation_trade_quote，为新交易保存确认凭证。旧交易的 quote_id 保持为空，不重写旧成交。
+- 仅清理超过一天且未成交的过期预览；已成交的确认记录继续保留。
+
+## 管理员账号（后续单独确认后操作）
+
+指定邮箱仍为 admin@user.com。账号应先注册并确认由本人掌控，再在 Render 配置 SIMULATION_ADMIN_EMAIL。不要在聊天或环境变量中存放管理员密码。
+
+配置的管理员邮箱禁止公开注册，防止被他人认领；现有账号使用原密码登录。留空则不授予管理员权限。部署后刷新页面，确保浏览器使用与新接口匹配的前端版本。
+
+## 验证记录与后续步骤
+
+- 专项检查通过：V5到V6迁移保留旧余额、发款和交易；申请金额与实际批准金额分开保存；调整原因及审批人记录；重复申请、重复审批、重复主动发放与重复交易保护；管理员权限及账户隔离；交易预览、价格变化、余额变化、过期、超卖拒绝；已实现、未实现、总盈亏以及缺失报价的估值处理。
+- 前端5项测试通过，包括MYR金额舍入、12位小数卖出边界、大数精度及非法数量格式。前端构建及源码检查通过，后端编译通过。
+- 用户人工验收最终余额MYR 1,450.00，持有0.5 BTC，测试单价MYR 100.00，持仓市值MYR 50.00，总资产与本金均为MYR 1,500.00，总盈亏MYR 0.00。刷新及重新登录后数据保留。
+- 用户确认超卖提示和限制、报价过期、手机布局及中英文显示正常。“全部卖出”按钮已实现，但独立的全部卖出人工用例尚未记录。
+- 完整后端自动测试及本轮并发用例未完成；浏览器自动界面验证受本地连接限制。上述人工验收和专项检查不能替代这些未完成的检查。
+
+用户已授权整理变更并创建本地提交。推送和部署前仍需另行对齐；上线前应补齐未完成检查并确认管理员账户归属及配置。

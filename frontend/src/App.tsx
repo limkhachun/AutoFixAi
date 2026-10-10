@@ -22,7 +22,7 @@ const demoTrades:Trade[]=[
 export default function App() {
  const [lang,setLang]=useState<'en'|'zh'>('en')
  const [maxDate]=useState(()=>new Date().toISOString().slice(0,10))
- const [view,setView]=useState<View>('overview')
+ const [view,setView]=useState<View>('simulation')
  const [account,setAccount]=useState<Account|null>(null)
  const [authReady,setAuthReady]=useState(false)
  const [register,setRegister]=useState(false)
@@ -56,13 +56,13 @@ export default function App() {
   return ()=>abort.abort()
  },[])
  useEffect(()=>{
-  if(!account)return
+  if(!account||view==='simulation'||view==='login')return
   const owner=account.id;const abort=new AbortController()
   loadPortfolio(abort.signal).then(payload=>{if(!abort.signal.aborted)setData({owner,revision,...payload})}).catch(error=>{
    if(!abort.signal.aborted)setLoadError({owner,revision,message:error.message})
   })
   return ()=>abort.abort()
- },[account,revision])
+ },[account,revision,view])
  useEffect(()=>{if(!account||busy)return;const timer=setInterval(()=>setRevision(n=>n+1),120000);return ()=>clearInterval(timer)},[account,busy])
  useEffect(()=>{document.documentElement.lang=lang==='en'?'en':'zh-CN'},[lang])
  function navigate(next:View){setView(next);setShowForm(false);setEditing(null);setDeleteTarget(null);setMessage('');setAuthError(false)}
@@ -92,7 +92,7 @@ export default function App() {
     const r=await authRequest('/api/auth/login',new URLSearchParams({email,password}),'application/x-www-form-urlencoded')
     if(!r.ok){setAuthError(true);setMessage(text('Check your email and password and try again.','请检查邮箱和密码后重试。'));return}
     const user=await currentAccount();if(!user)throw Error('SESSION_EXPIRED')
-    setData(null);setLoadError(null);setAccount(user);setLang(user.language);form.reset();navigate('overview')
+    setData(null);setLoadError(null);setAccount(user);setLang(user.language);form.reset();navigate('simulation')
    }
   }catch(error){setAuthError(true);setMessage(explain(error))}finally{setBusy(false)}
  }
@@ -125,7 +125,7 @@ export default function App() {
   setEditing(trade);setShowForm(true);setDeleteTarget(null);setMessage('')
  }
  return <div className="app-shell">
-  <aside className="sidebar"><a href="#" className="brand" onClick={e=>{e.preventDefault();navigate('overview')}}><span className="brand-mark">P</span>Portfolio<span className="brand-dot">.</span></a><p className="nav-caption">WORKSPACE</p><nav aria-label={t.nav}>{(['overview','transactions','simulation','login'] as View[]).map(item=><button key={item} aria-current={view===item?'page':undefined} className={view===item?'nav-item active':'nav-item'} disabled={busy} onClick={()=>navigate(item)}><span aria-hidden="true">{item==='overview'?'▦':item==='transactions'?'⇄':'↗'}</span>{t[item]}</button>)}</nav><div className="sidebar-foot"><span className={'status-dot '+health}/><span role="status">{t[health]}</span><small>Java · Spring Boot</small></div></aside>
+  <aside className="sidebar"><a href="#" className="brand" onClick={e=>{e.preventDefault();navigate('overview')}}><span className="brand-mark">P</span>Portfolio<span className="brand-dot">.</span></a><p className="nav-caption">WORKSPACE</p><nav aria-label={t.nav}>{(['simulation','overview','transactions','login'] as View[]).map(item=><button key={item} aria-current={view===item?'page':undefined} className={view===item?'nav-item active':'nav-item'} disabled={busy} onClick={()=>navigate(item)}><span aria-hidden="true">{item==='overview'?'▦':item==='transactions'?'⇄':'↗'}</span>{t[item]}</button>)}</nav><div className="sidebar-foot"><span className={'status-dot '+health}/><span role="status">{t[health]}</span><small>Java · Spring Boot</small></div></aside>
   <div className="workspace"><header className="topbar"><span>Crypto Portfolio <span className="slash">/</span> {t[view]}</span><button className="language" onClick={()=>setLang(lang==='en'?'zh':'en')} aria-label={lang==='en'?'Switch to Chinese':'切换为英语'}>{lang==='en'?'中文':'English'}</button></header>
   <main><div className="demo-banner">{view==='simulation'?text('Trading practice · simulated MYR','交易练习 · 模拟马币'):demo?text('Sample portfolio · Illustrative FX: USD 1 = MYR 4.20','示例资产 · 示例汇率：1美元 = 4.20马币'):text('Your transaction records · MYR','您的交易记录 · 马币')}</div>
   <div className="account-bar">{account?<><span>{text('Signed in as','当前账户')} <strong>{account.email}</strong></span><button className="text-button" disabled={busy} onClick={()=>void logout()}>{text('Sign out','退出登录')}</button></>:<span>{authReady?text('Sign in to manage your own portfolio.','登录后管理您的资产。'):text('Checking session…','正在检查登录状态…')}</span>}</div>
